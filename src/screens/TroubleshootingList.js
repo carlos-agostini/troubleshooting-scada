@@ -1,22 +1,12 @@
 import { useEffect, useState } from "react";
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Alert } from "react-native";
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, Pressable, Alert, ActivityIndicator, Platform } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { Platform } from "react-native";
 import supabase from "../services/supabase";
 
 export default function TroubleshootingList() {
   const [troubleshooting, setTroubleshooting] = useState([]);
+  const [loading, setLoading] = useState(true);
   const navigation = useNavigation();
-
-  // Función para obtener los datos desde Supabase
-  const fetchTroubleshooting = async () => {
-    const { data, error } = await supabase.from("troubleshooting").select("*");
-    if (error) {
-      console.error("Error obteniendo los datos:", error);
-    } else {
-      setTroubleshooting(data);
-    }
-  };
 
   useEffect(() => {
     fetchTroubleshooting();
@@ -33,7 +23,21 @@ export default function TroubleshootingList() {
     };
   }, []);
 
-  // Función para eliminar un troubleshooting
+  const fetchTroubleshooting = async () => {
+    try {
+      const { data, error } = await supabase.from("troubleshooting").select("*");
+
+      if (error) {
+        console.error("Error obteniendo los datos:", error.message);
+      } else {
+        setTroubleshooting(data);
+      }
+    } catch (error) {
+      console.error("Error en fetchTroubleshooting:", error);
+    }
+    setLoading(false);
+  };
+
   const handleDelete = async (id) => {
     if (Platform.OS === "web") {
       const confirmDelete = window.confirm("¿Estás seguro de que quieres eliminar este troubleshooting?");
@@ -52,24 +56,31 @@ export default function TroubleshootingList() {
       );
       return;
     }
-  
+
     await deleteTroubleshooting(id);
   };
-  
+
   const deleteTroubleshooting = async (id) => {
     console.log("Intentando eliminar troubleshooting con ID:", id);
-  
-    const { error } = await supabase.from("troubleshooting").delete().eq("id", id);
-  
-    if (error) {
-      console.error("Error eliminando troubleshooting:", error);
-      Alert.alert("Error", `No se pudo eliminar el troubleshooting. ${error.message}`);
-    } else {
-      console.log("Troubleshooting eliminado correctamente");
-      Alert.alert("Éxito", "Troubleshooting eliminado correctamente.");
-      fetchTroubleshooting(); // Recargar la lista automáticamente
+    try {
+      const { error } = await supabase.from("troubleshooting").delete().eq("id", id);
+      if (error) {
+        Alert.alert("Error", `No se pudo eliminar el troubleshooting. ${error.message}`);
+      } else {
+        fetchTroubleshooting(); // Recargar la lista automáticamente
+      }
+    } catch (error) {
+      console.error("Error inesperado:", error);
     }
   };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="blue" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -79,20 +90,15 @@ export default function TroubleshootingList() {
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <View style={styles.card}>
-            <TouchableOpacity
-              onPress={() => navigation.navigate("Editar", { troubleshootingId: item.id })}
-            >
+            <TouchableOpacity onPress={() => navigation.navigate("Editar", { troubleshootingId: item.id })}>
               <Text style={styles.cardTitle}>{item.title}</Text>
               <Text>{item.description}</Text>
               <Text style={styles.cardSubtitle}>Síntomas: {item.symptoms}</Text>
               <Text style={styles.cardSubtitle}>Solución: {item.solution}</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={() => handleDelete(item.id)}
-            >
+            <Pressable style={styles.deleteButton} onPress={() => handleDelete(item.id)}>
               <Text style={styles.deleteText}>Eliminar</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
         )}
       />
@@ -102,6 +108,7 @@ export default function TroubleshootingList() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: "#f4f4f4" },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   title: { fontSize: 20, fontWeight: "bold", marginBottom: 10 },
   card: {
     backgroundColor: "white",
